@@ -29,6 +29,8 @@
 using namespace MatrixMultiplication;
 using namespace std::string_literals;
 
+#define min(x,y) (((x) < (y)) ? (x) : (y))
+
 int main()
 {
 	// Pointers for storing matrices.
@@ -92,6 +94,7 @@ int main()
 			// Normal Multiplication Logic
 			for (int i = 0; i < m; i++) 
 			{
+#pragma parallel
 				for (int j = 0; j < n; j++) 
 				{
 					sum = 0.0;
@@ -112,7 +115,23 @@ int main()
 		std::cout << "Exception Opening Normal Matrix Multiplication Output File. Try Again!"s;
 	}
 	normal_multiplication_output_file.close();
-	stopwatch.Reset();
+
+	// Printing top left corner of the matrix to ensure that our multiplication is correct.
+	std::cout << "Top left corner of matrix C:" << std::endl;
+	for (int i = 0; i < min(m, 6); i++) 
+	{
+		for (int j = 0; j < min(n, 6); j++) 
+		{
+			printf("%12.5G", C[j + i * n]);
+		}
+		std::cout << std::endl;
+	}
+
+	// Clear out C before using it in dgemm function.
+	for (int i = 0; i < (m * n); i++)
+	{
+		C[i] = static_cast<double>(0.0);
+	}
 
 	std::cout << "------------------------------------------------------" << std::endl;
 	std::cout << "Using Intel SIMD dgemm function via CBLAS interface & matrix transposition" << std::endl;
@@ -127,10 +146,18 @@ int main()
 		{
 			stopwatch.Start();
 			// Parallel Multiplication Logic
-			cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans,
+			cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
 				m, n, p, 1.0, A, p, B, n, 1.0, C, n);
 			stopwatch.Stop();
 			parallel_multiplication_output_file << std::to_string(stopwatch.ElapsedMilliseconds().count()) + "\n"s;
+			// Just to make sure that we preserve last iteration result instead of clearing out.
+			if (i < 99)
+			{
+				for (int i = 0; i < (m * n); i++)
+				{
+					C[i] = static_cast<double>(0.0);
+				}
+			}
 		}
 		std::cout << "SIMD Matrix Multiplication Output File Created Successfully!\n"s << std::endl;
 	}
@@ -140,6 +167,17 @@ int main()
 	}
 	parallel_multiplication_output_file.close();
 	stopwatch.Reset();
+
+	// Printing top left corner of the matrix to ensure that our multiplication is correct.
+	std::cout << "Top left corner of matrix C:" << std::endl;
+	for (int i = 0; i < min(m, 6); i++) 
+	{
+		for (int j = 0; j < min(n, 6); j++) 
+		{
+			printf("%12.5G", C[j + i * n]);
+		}
+		std::cout << std::endl;
+	}
 
 	std::cout << "Deallocating memory blocks of all matrices" << std::endl;
 	mkl_free(A);
